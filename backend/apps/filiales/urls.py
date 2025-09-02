@@ -1,10 +1,10 @@
-from django.urls import path, include
-from rest_framework.routers import DefaultRouter
-from .views import FilialeViewSet
+from django.urls import include, path
+from rest_framework import routers
+from .views import FilialViewSet
 
-router = DefaultRouter()
-router.register(r'filiales', FilialeViewSet)
+router = routers.DefaultRouter()
+router.register(r'filiales', FilialViewSet, basename='filiale')
 
 urlpatterns = [
-    path('', include(router.urls)),
+    path('api/', include(router.urls)),
 ]

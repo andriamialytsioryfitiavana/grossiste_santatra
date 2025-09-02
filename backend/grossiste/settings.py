@@ -2,7 +2,6 @@
 import os
 from pathlib import Path
 
-# Base directory
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Clé secrète (remplacer en production via variable d'environnement)
@@ -23,32 +22,51 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    # enable CORS for frontend dev
+    'corsheaders',
     'apps.filiales',
     'apps.utilisateurs',
 ]
 
-# Configuration de la base de données (configurée en dur pour le développement)
-# Hypothèses : Laragon/MySQL local, utilisateur 'root' sans mot de passe, base 'grossiste_santatra'.
-# Modifiez les valeurs ci-dessous si votre configuration differe.
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'grossiste_santatra',
-        'USER': 'root',
-        'PASSWORD': '',
-        'HOST': '127.0.0.1',
-        'PORT': '3306',
-        'OPTIONS': {
-            'charset': 'utf8mb4',
-        },
-    }
-}
+# Configuration de la base de données : utiliser des variables d'environnement, revenir aux valeurs par défaut de MySQL, option dev pour utiliser SQLite
+USE_SQLITE = os.environ.get("DJANGO_USE_SQLITE", "0") == "1"
+DB_ENGINE = os.environ.get("DJANGO_DB_ENGINE", "django.db.backends.mysql")
 
-# NOTE: Si vous preferez utiliser des variables d'environnement ou SQLite en dev, dites-le et
-# je peux restaurer la logique dynamique qui lit DJANGO_DB_* ou DJANGO_USE_SQLITE.
+# Si utilisation de MySQL, essayer de s'assurer qu'un pilote DB-API est disponible (fallback pymysql)
+if DB_ENGINE == "django.db.backends.mysql":
+    try:
+        import MySQLdb  # noqa: F401
+    except Exception:
+        try:
+            import pymysql
+            pymysql.install_as_MySQLdb()
+        except Exception:
+            pass
+
+if USE_SQLITE:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": DB_ENGINE,
+            "NAME": os.environ.get("DJANGO_DB_NAME", "grossiste_santatra"),
+            "USER": os.environ.get("DJANGO_DB_USER", "root"),
+            "PASSWORD": os.environ.get("DJANGO_DB_PASSWORD", ""),
+            "HOST": os.environ.get("DJANGO_DB_HOST", "127.0.0.1"),
+            "PORT": os.environ.get("DJANGO_DB_PORT", "3306"),
+            "OPTIONS": {"charset": "utf8mb4"},
+        }
+    }
 
 # Middleware par défaut
 MIDDLEWARE = [
+    # corsheaders must come before CommonMiddleware
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -104,6 +122,31 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.AllowAny',
     ],
 }
+
+# après REST_FRAMEWORK ou en bas du fichier — développement seulement
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+# pour debug rapide (dev only) : autoriser tout (supprimez en prod)
+# CORS_ALLOW_ALL_ORIGINS = True
+
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+
+# Email (développement: affichage dans la console)
+EMAIL_BACKEND = os.environ.get("DJANGO_EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")
+DEFAULT_FROM_EMAIL = os.environ.get("DJANGO_DEFAULT_FROM", "no-reply@grossiste.local")
+
+# Exemple pour SMTP (mettre en variables d'environnement en production)
+# EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+# EMAIL_HOST = os.environ.get("DJANGO_EMAIL_HOST", "smtp.example.com")
+# EMAIL_PORT = int(os.environ.get("DJANGO_EMAIL_PORT", 587))
+# EMAIL_HOST_USER = os.environ.get("DJANGO_EMAIL_USER", "")
+# EMAIL_HOST_PASSWORD = os.environ.get("DJANGO_EMAIL_PASSWORD", "")
+# EMAIL_USE_TLS = os.environ.get("DJANGO_EMAIL_USE_TLS", "1") == "1"
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
