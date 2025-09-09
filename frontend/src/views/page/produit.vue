@@ -127,40 +127,30 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { ProductsAPI } from '@/services/products.js'
 
 // Reactive data
-const produits = ref([
-  {
-    id: 1,
-    nom: 'Smartphone Samsung',
-    categorie: 'electronique',
-    prix: 250000,
-    stock: 15,
-    status: 'active',
-    description: 'Smartphone dernière génération',
-    image: null
-  },
-  {
-    id: 2,
-    nom: 'T-shirt Coton',
-    categorie: 'vetement',
-    prix: 15000,
-    stock: 50,
-    status: 'active',
-    description: 'T-shirt 100% coton',
-    image: null
-  },
-  {
-    id: 3,
-    nom: 'Riz Makalioka',
-    categorie: 'alimentaire',
-    prix: 3500,
-    stock: 100,
-    status: 'active',
-    description: 'Riz de qualité supérieure',
-    image: null
+const produits = ref([])
+
+const loadProduits = async () => {
+  try {
+    const list = await ProductsAPI.list();
+    produits.value = (list || []).map(p => ({
+      id: p.id,
+      nom: p.name,
+      categorie: p.category,
+      prix: p.price,
+      stock: p.stock,
+      status: p.status || 'active',
+      description: p.description || '',
+      image: p.image || null,
+    }));
+  } catch (e) {
+    console.error('Erreur de chargement des produits:', e);
+    produits.value = [];
+    alert('Impossible de charger les produits');
   }
-])
+}
 
 const searchTerm = ref('')
 const selectedCategory = ref('')
@@ -189,32 +179,40 @@ const editProduit = (produit) => {
   formData.value = { ...produit }
 }
 
-const deleteProduit = (id) => {
+const deleteProduit = async (id) => {
   if (confirm('Êtes-vous sûr de vouloir supprimer ce produit ?')) {
-    const index = produits.value.findIndex(p => p.id === id)
-    if (index > -1) {
-      produits.value.splice(index, 1)
+    try {
+      await ProductsAPI.remove(id);
+      await loadProduits();
+    } catch (e) {
+      console.error('Erreur suppression produit:', e);
+      alert('Erreur lors de la suppression du produit');
     }
   }
 }
 
-const saveProduit = () => {
-  if (editingProduit.value) {
-    // Modifier
-    const index = produits.value.findIndex(p => p.id === editingProduit.value.id)
-    if (index > -1) {
-      produits.value[index] = { ...formData.value }
+const saveProduit = async () => {
+  const payload = {
+    name: formData.value.nom,
+    category: formData.value.categorie,
+    price: Number(formData.value.prix),
+    stock: Number(formData.value.stock),
+    status: editingProduit.value?.status || 'active',
+    description: formData.value.description,
+    image: null,
+  };
+  try {
+    if (editingProduit.value) {
+      await ProductsAPI.update(editingProduit.value.id, payload);
+    } else {
+      await ProductsAPI.create(payload);
     }
-  } else {
-    // Ajouter
-    const newProduit = {
-      ...formData.value,
-      id: Date.now(),
-      status: 'active'
-    }
-    produits.value.push(newProduit)
+    await loadProduits();
+    closeModal();
+  } catch (e) {
+    console.error('Erreur enregistrement produit:', e);
+    alert("Erreur lors de l'enregistrement du produit");
   }
-  closeModal()
 }
 
 const closeModal = () => {
@@ -230,7 +228,7 @@ const closeModal = () => {
 }
 
 onMounted(() => {
-  // Initialisation si nécessaire
+  loadProduits();
 })
 </script>
 
